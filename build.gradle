@@ -68,7 +68,7 @@ tasks.register('bridgeJar', Jar) {
     destinationDirectory = file("$projectDir/out/${modid}/jars")
 
     from(sourceSets.main.output) {
-        include 'eco/mixin/**'
+        include 'com/github/alphardpaarthurnax/mixinlib/**'
         include 'com/fs/starfarer/loading/scripts/B.class'
         include 'META-INF/services/**'
     }
@@ -89,7 +89,7 @@ tasks.register('bridgeJar', Jar) {
 
     manifest {
         attributes(
-            'Premain-Class': 'eco.mixin.AgentEntry',
+            'Premain-Class': 'com.github.alphardpaarthurnax.mixinlib.AgentEntry',
             'Can-Retransform-Classes': 'true',
             'Can-Redefine-Classes': 'true'
         )

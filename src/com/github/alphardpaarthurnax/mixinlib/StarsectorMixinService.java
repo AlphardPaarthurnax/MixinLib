@@ -1,4 +1,4 @@
-package eco.mixin;
+package com.github.alphardpaarthurnax.mixinlib;
 
 import java.io.File;
 import java.io.FileInputStream;
