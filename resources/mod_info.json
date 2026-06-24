@@ -1,0 +1,13 @@
+{
+    "id":"MixinLib",
+    "name":"MixinLib",
+    "author":"AlphardPaarthurnax",
+    "version":"1.0.0",
+    "description":"对于Starsector Mod的Mixin库\nMixin for Starsector mods",
+    "gameVersion":"0.98a-RC8",
+    "totalConversion":false,
+    "jars": [
+        "jars/mixinlib-bridge.jar"
+    ],
+    "dependencies": []
+}
