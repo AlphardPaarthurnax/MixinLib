@@ -98,50 +98,17 @@ tasks.register('bridgeJar', Jar) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-tasks.register('setupVmparams') {
-    group = "_runStarsectorMod"
-
-    doLast {
-        def vmparamsFile = file("${starsectorDir}/vmparams")
-        if (!vmparamsFile.exists()) {
-            println "[MixinLib] vmparams not found at ${vmparamsFile}"
-            return
-        }
-
-        def agentLine = "-javaagent:..\\mods\\MixinLib\\jars\\${bridgeJarName}.jar"
-
-        def content = vmparamsFile.text.trim()
-        if (content.contains(agentLine)) {
-            println "[MixinLib] vmparams already has -javaagent"
-            return
-        }
-
-        def backupFile = file("${starsectorDir}/vmparams.bak")
-        if (!backupFile.exists()) {
-            backupFile.text = content
-            println "[MixinLib] vmparams backed up to vmparams.bak"
-        }
-
-        def mainClass = 'com.fs.starfarer.StarfarerLauncher'
-        if (content.contains(mainClass)) {
-            content = content.replace(mainClass, agentLine + ' ' + mainClass)
-        } else {
-            content = content + ' ' + agentLine
-        }
-
-        vmparamsFile.text = content
-        println "[MixinLib] Added -javaagent to vmparams"
-    }
-}
-
 tasks.register('toGame', Sync) {
     group = "_runStarsectorMod"
 
     dependsOn bridgeJar
-    dependsOn setupVmparams
 
     from("$projectDir/out/${modid}")
     from("$projectDir/resources/mod_info.json")
+    from("$projectDir") {
+        include 'install.bat'
+        include 'uninstall.bat'
+    }
     into "${starsectorDir}/mods/${modid}"
 }
 
@@ -161,4 +128,9 @@ tasks.register('releaseZip', Zip) {
     archiveFileName = "${modid}-${modversion}.zip"
 
     from "$projectDir/out/${modid}"
+    from("$projectDir") {
+        include 'install.bat'
+        include 'uninstall.bat'
+        into modid
+    }
 }
