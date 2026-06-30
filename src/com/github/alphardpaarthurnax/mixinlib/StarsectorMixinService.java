@@ -195,7 +195,7 @@ public class StarsectorMixinService extends MixinServiceAbstract {
             }
         }
 
-        if (name.endsWith(".mixin.json")) {
+        if (name.endsWith(".mixin.json") || name.endsWith(".refmap.json")) {
             return findModResource(name);
         }
         return null;
