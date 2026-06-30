@@ -125,12 +125,12 @@ tasks.register('releaseZip', Zip) {
     dependsOn clean
     dependsOn bridgeJar
 
-    archiveFileName = "${modid}-${modversion}.zip"
+    archiveFileName = "${modName}-${modversion}.zip"
 
-    from "$projectDir/out/${modid}"
+    from("$projectDir/out/${modid}")
+    from("$projectDir/resources/mod_info.json")
     from("$projectDir") {
         include 'install.bat'
         include 'uninstall.bat'
-        into modid
     }
 }
