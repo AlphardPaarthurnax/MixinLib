@@ -24,8 +24,8 @@ set "TMPFILE=%TEMP%\vmparams_mixinlib_%RANDOM%.tmp"
 for /f "usebackq delims=" %%a in ("..\..\vmparams") do (
     set "LINE=%%a"
     set "LINE=!LINE:%MAIN_CLASS%=%AGENT_LINE% %MAIN_CLASS%!"
-    echo !LINE!
-) > "%TMPFILE%"
+)
+<nul > "%TMPFILE%" set /p "=!LINE!"
 
 move /y "%TMPFILE%" "..\..\vmparams" >nul
 echo [MixinLib] Installed. Launch Starsector normally.

@@ -23,8 +23,8 @@ for /f "usebackq delims=" %%a in ("..\..\vmparams") do (
     set "LINE=%%a"
     set "LINE=!LINE:%AGENT_LINE% =!"
     set "LINE=!LINE: %AGENT_LINE%=!"
-    echo !LINE!
-) > "%TMPFILE%"
+)
+<nul > "%TMPFILE%" set /p "=!LINE!"
 
 move /y "%TMPFILE%" "..\..\vmparams" >nul
 echo [MixinLib] Uninstalled.
