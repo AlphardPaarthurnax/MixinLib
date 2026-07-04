@@ -1,18 +1,16 @@
 package com.github.alphardpaarthurnax.mixinlib;
 
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.net.URL;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
+import java.lang.reflect.Method;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -33,14 +31,54 @@ import org.spongepowered.tools.agent.MixinAgent;
 public class StarsectorMixinService extends MixinServiceAbstract {
 
     private static volatile IMixinTransformer cachedTransformer;
-    private static final Map<String, byte[]> CLASS_CACHE = new ConcurrentHashMap<>();
+    private static volatile ClassLoader gameClassLoader;
 
     public static IMixinTransformer getCachedTransformer() {
         return cachedTransformer;
     }
 
-    public static void cacheClass(String className, byte[] bytes) {
-        CLASS_CACHE.put(className, bytes);
+    private static ClassLoader findGameBClassLoader() {
+        ClassLoader cl = gameClassLoader;
+        if (cl != null) return cl;
+        ClassLoader ctx = Thread.currentThread().getContextClassLoader();
+        while (ctx != null) {
+            if (ctx.getClass().getName().equals("com.fs.starfarer.loading.scripts.B")) {
+                gameClassLoader = ctx;
+                return ctx;
+            }
+            ctx = ctx.getParent();
+        }
+        return StarsectorMixinService.class.getClassLoader();
+    }
+
+    private static Class<?> defineOnGameLoader(String name, byte[] bytes) throws ClassNotFoundException {
+        ClassLoader target = findGameBClassLoader();
+        try {
+            Class<?> defined;
+            if (target instanceof com.fs.starfarer.loading.scripts.B) {
+                defined = ((com.fs.starfarer.loading.scripts.B) target).define(name, bytes, 0, bytes.length);
+            } else {
+                Method define = ClassLoader.class.getDeclaredMethod("defineClass", String.class, byte[].class, int.class, int.class);
+                define.setAccessible(true);
+                defined = (Class<?>) define.invoke(target, name, bytes, 0, bytes.length);
+            }
+            return defined;
+        } catch (Exception e) {
+            logError("[Svc]  FAILED to define " + name, e);
+            throw new ClassNotFoundException("Cannot define " + name + " in game classloader", e);
+        }
+    }
+
+    private static byte[] lookupBytes(String name) {
+        ModClassLoader mc = ModClassLoader.getInstance();
+        if (mc == null) return null;
+        String resourceName = name.replace('.', '/') + ".class";
+        try (InputStream is = mc.getResourceAsStream(resourceName)) {
+            if (is != null) {
+                return is.readAllBytes();
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     @Override
@@ -60,27 +98,23 @@ public class StarsectorMixinService extends MixinServiceAbstract {
 
     @Override
     public IClassProvider getClassProvider() {
-        ClassLoader modFallback = new ClassLoader(getClass().getClassLoader()) {
-            @Override
-            protected Class<?> findClass(String name) throws ClassNotFoundException {
-                byte[] bytes = CLASS_CACHE.get(name);
-                if (bytes == null) {
-                    bytes = findClassInModJars(name);
-                }
-                if (bytes != null) {
-                    return defineClass(name, bytes, 0, bytes.length);
-                }
-                throw new ClassNotFoundException(name);
-            }
-        };
-
         return new IClassProvider() {
             @Override
             public Class<?> findClass(String name) throws ClassNotFoundException {
                 try {
                     return Class.forName(name, false, getClassLoader());
                 } catch (ClassNotFoundException e) {
-                    return modFallback.loadClass(name);
+                    ModClassLoader mc = ModClassLoader.getInstance();
+                    if (mc != null) {
+                        try {
+                            return Class.forName(name, false, mc);
+                        } catch (ClassNotFoundException ignored) {}
+                    }
+                    byte[] bytes = lookupBytes(name);
+                    if (bytes != null) {
+                        return defineOnGameLoader(name, bytes);
+                    }
+                    throw new ClassNotFoundException(name);
                 }
             }
 
@@ -89,7 +123,17 @@ public class StarsectorMixinService extends MixinServiceAbstract {
                 try {
                     return Class.forName(name, initialize, getClassLoader());
                 } catch (ClassNotFoundException e) {
-                    return modFallback.loadClass(name);
+                    ModClassLoader mc = ModClassLoader.getInstance();
+                    if (mc != null) {
+                        try {
+                            return Class.forName(name, initialize, mc);
+                        } catch (ClassNotFoundException ignored) {}
+                    }
+                    byte[] bytes = lookupBytes(name);
+                    if (bytes != null) {
+                        return defineOnGameLoader(name, bytes);
+                    }
+                    throw new ClassNotFoundException(name);
                 }
             }
 
@@ -122,25 +166,29 @@ public class StarsectorMixinService extends MixinServiceAbstract {
             public ClassNode getClassNode(String name, boolean runTransformers, int flags) throws ClassNotFoundException, IOException {
                 byte[] bytes = getClassBytes(name);
                 if (bytes == null) return null;
-                ClassReader reader = new ClassReader(bytes);
-                ClassNode node = new ClassNode();
-                reader.accept(node, flags);
-                return node;
+                try {
+                    ClassReader reader = new ClassReader(bytes);
+                    ClassNode node = new ClassNode();
+                    reader.accept(node, flags);
+                    return node;
+                } catch (Exception e) {
+                    logError("[Svc]  getClassNode: ASM error for " + name, e);
+                    return null;
+                }
             }
 
             private byte[] getClassBytes(String name) throws IOException {
-                byte[] cached = CLASS_CACHE.get(name);
-                if (cached != null) return cached;
+                ModClassLoader mc = ModClassLoader.getInstance();
                 String resourceName = name.replace('.', '/') + ".class";
-                InputStream is = getClassLoader().getResourceAsStream(resourceName);
-                if (is == null) {
-                    byte[] fromJar = findClassInModJars(name);
-                    if (fromJar != null) return fromJar;
-                    return null;
+                if (mc != null) {
+                    try (InputStream is = mc.getResourceAsStream(resourceName)) {
+                        if (is != null) return is.readAllBytes();
+                    }
                 }
-                byte[] bytes = is.readAllBytes();
-                is.close();
-                return bytes;
+                try (InputStream is = getClassLoader().getResourceAsStream(resourceName)) {
+                    if (is != null) return is.readAllBytes();
+                }
+                return null;
             }
         };
     }
@@ -176,11 +224,26 @@ public class StarsectorMixinService extends MixinServiceAbstract {
 
     @Override
     public IMixinAuditTrail getAuditTrail() {
-        return null;
+        return new IMixinAuditTrail() {
+            public void onApply(String targetClass, String mixinClass) {
+                log("[Audit] APPLY mixin=" + mixinClass + " to target=" + targetClass);
+            }
+            public void onPostProcess(String className) {
+                log("[Audit] POSTPROCESS " + className);
+            }
+            public void onGenerate(String targetClass, String mixinClass) {
+                log("[Audit] GENERATE mixin=" + mixinClass + " for target=" + targetClass);
+            }
+        };
     }
 
     @Override
     public InputStream getResourceAsStream(String name) {
+        ModClassLoader mc = ModClassLoader.getInstance();
+        if (mc != null) {
+            InputStream is = mc.getResourceAsStream(name);
+            if (is != null) return is;
+        }
         Set<ClassLoader> tried = new HashSet<>();
         ClassLoader[] loaders = {
             Thread.currentThread().getContextClassLoader(),
@@ -194,34 +257,6 @@ public class StarsectorMixinService extends MixinServiceAbstract {
                 cl = cl.getParent();
             }
         }
-
-        if (name.endsWith(".mixin.json") || name.endsWith(".refmap.json")) {
-            return findModResource(name);
-        }
-        return null;
-    }
-
-    private static InputStream findModResource(String name) {
-        String modsPath = System.getProperty("com.fs.starfarer.settings.paths.mods");
-        if (modsPath == null) return null;
-        File modsDir = new File(modsPath);
-        File[] modDirs = modsDir.listFiles(File::isDirectory);
-        if (modDirs == null) return null;
-        for (File modDir : modDirs) {
-            File configFile = new File(modDir, name);
-            if (configFile.isFile()) {
-                try { return new FileInputStream(configFile); } catch (IOException ignored) {}
-            }
-            File jarsDir = new File(modDir, "jars");
-            File[] jars = jarsDir.listFiles(f -> f.isFile() && f.getName().endsWith(".jar"));
-            if (jars == null) continue;
-            for (File jarFile : jars) {
-                try (JarFile jar = new JarFile(jarFile)) {
-                    ZipEntry entry = jar.getEntry(name);
-                    if (entry != null) return jar.getInputStream(entry);
-                } catch (IOException ignored) {}
-            }
-        }
         return null;
     }
 
@@ -233,30 +268,28 @@ public class StarsectorMixinService extends MixinServiceAbstract {
         return ClassLoader.getSystemClassLoader();
     }
 
-    private static byte[] findClassInModJars(String className) {
-        String resourceName = className.replace('.', '/') + ".class";
-        String modsPath = System.getProperty("com.fs.starfarer.settings.paths.mods");
-        if (modsPath == null) return null;
-        File modsDir = new File(modsPath);
-        if (!modsDir.isDirectory()) return null;
-        File[] modDirs = modsDir.listFiles(File::isDirectory);
-        if (modDirs == null) return null;
-        for (File modDir : modDirs) {
-            File jarsDir = new File(modDir, "jars");
-            File[] jars = jarsDir.listFiles(f -> f.isFile() && f.getName().endsWith(".jar"));
-            if (jars == null) continue;
-            for (File jarFile : jars) {
-                try (JarFile jar = new JarFile(jarFile)) {
-                    ZipEntry entry = jar.getEntry(resourceName);
-                    if (entry != null) {
-                        InputStream is = jar.getInputStream(entry);
-                        byte[] bytes = is.readAllBytes();
-                        is.close();
-                        return bytes;
-                    }
-                } catch (IOException ignored) {}
-            }
+    private static String logPath() {
+        String dir = System.getProperty("com.fs.starfarer.settings.paths.logs");
+        if (dir == null || dir.isEmpty()) {
+            dir = System.getProperty("user.dir", ".");
         }
-        return null;
+        return dir + File.separator + "corecracking_debug.log";
+    }
+
+    private static void logError(String msg, Throwable t) {
+        try {
+            PrintWriter pw = new PrintWriter(new FileWriter(logPath(), true));
+            pw.println(new java.util.Date() + " " + msg);
+            t.printStackTrace(pw);
+            pw.close();
+        } catch (Throwable ignored) {}
+    }
+
+    private static void log(String msg) {
+        try {
+            PrintWriter pw = new PrintWriter(new FileWriter(logPath(), true));
+            pw.println(new java.util.Date() + " " + msg);
+            pw.close();
+        } catch (Throwable ignored) {}
     }
 }
