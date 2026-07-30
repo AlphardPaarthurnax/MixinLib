@@ -1,0 +1,8 @@
+.gradle/
+.gradle-user/
+.idea/
+build/
+out/
+META-INF/
+mixinlib.log
+

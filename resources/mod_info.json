@@ -1,13 +1,13 @@
 {
-    "id":"MixinLib",
-    "name":"MixinLib",
-    "author":"AlphardPaarthurnax",
-    "version":"1.0.1",
-    "description":"对于Starsector Mod的Mixin库\nMixin for Starsector mods",
-    "gameVersion":"0.98a-RC8",
-    "totalConversion":false,
-    "jars": [
-        "jars/Mixinlib-bridge.jar"
-    ],
-    "dependencies": []
+  "id": "MixinLib",
+  "name": "MixinLib",
+  "author": "Alphard Paarthurnax",
+  "version": "1.1.0",
+  "description": "Fabric Mixin runtime and unified class-loading bridge for Starsector mods.",
+  "gameVersion": "0.98a-RC8",
+  "totalConversion": false,
+  "jars": [
+    "jars/MixinLib-bridge.jar"
+  ],
+  "dependencies": []
 }

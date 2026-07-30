@@ -24,8 +24,12 @@ tasks.withType(JavaCompile).configureEach {
 repositories {
     mavenCentral()
     maven {
-        name "SpongePowered"
-        url = uri("https://repo.spongepowered.org/maven/")
+        name = 'Fabric'
+        url = uri('https://maven.fabricmc.net/')
+    }
+    maven {
+        name = 'SpongePowered'
+        url = uri('https://repo.spongepowered.org/maven/')
     }
 }
 
@@ -40,23 +44,23 @@ dependencies {
             "${starsectorDir}/starsector-core/fs.common_obf.jar",
     )
 
-    implementation('org.spongepowered:mixin:0.8.7')
-    implementation('org.ow2.asm:asm:9.6')
-    implementation('org.ow2.asm:asm-commons:9.6')
-    implementation('org.ow2.asm:asm-tree:9.6')
-    implementation('org.ow2.asm:asm-util:9.6')
+    implementation('net.fabricmc:sponge-mixin:0.17.3+mixin.0.8.7')
+    implementation('org.ow2.asm:asm:9.8')
+    implementation('org.ow2.asm:asm-commons:9.8')
+    implementation('org.ow2.asm:asm-tree:9.8')
+    implementation('org.ow2.asm:asm-util:9.8')
     implementation('com.google.guava:guava:21.0')
     implementation('com.google.code.gson:gson:2.8.9')
 
-    shade('org.spongepowered:mixin:0.8.7') {
+    shade('net.fabricmc:sponge-mixin:0.17.3+mixin.0.8.7') {
         exclude group: 'org.apache.logging.log4j'
         exclude group: 'org.lwjgl.lwjgl'
         exclude group: 'commons-io'
     }
-    shade('org.ow2.asm:asm:9.6')
-    shade('org.ow2.asm:asm-commons:9.6')
-    shade('org.ow2.asm:asm-tree:9.6')
-    shade('org.ow2.asm:asm-util:9.6')
+    shade('org.ow2.asm:asm:9.8')
+    shade('org.ow2.asm:asm-commons:9.8')
+    shade('org.ow2.asm:asm-tree:9.8')
+    shade('org.ow2.asm:asm-util:9.8')
     shade('com.google.guava:guava:21.0')
     shade('com.google.code.gson:gson:2.8.9')
 }
@@ -69,7 +73,6 @@ tasks.register('bridgeJar', Jar) {
 
     from(sourceSets.main.output) {
         include 'com/github/alphardpaarthurnax/mixinlib/**'
-        include 'com/fs/starfarer/loading/scripts/B.class'
         include 'META-INF/services/**'
     }
 
@@ -89,7 +92,7 @@ tasks.register('bridgeJar', Jar) {
 
     manifest {
         attributes(
-            'Premain-Class': 'com.github.alphardpaarthurnax.mixinlib.AgentEntry',
+            'Premain-Class': 'com.github.alphardpaarthurnax.mixinlib.bootstrap.AgentEntry',
             'Can-Retransform-Classes': 'true',
             'Can-Redefine-Classes': 'true'
         )
@@ -99,8 +102,7 @@ tasks.register('bridgeJar', Jar) {
 }
 
 tasks.register('toGame', Sync) {
-    group = "_runStarsectorMod"
-
+    group = '_runStarsectorMod'
     dependsOn bridgeJar
 
     from("$projectDir/out/${modid}")
@@ -113,20 +115,17 @@ tasks.register('toGame', Sync) {
 }
 
 tasks.register('buildMod') {
-    group = "_runStarsectorMod"
-
-    dependsOn clean
-    dependsOn toGame
+    group = '_runStarsectorMod'
+    dependsOn clean, toGame
+    tasks.named('toGame').get().mustRunAfter clean
 }
 
 tasks.register('releaseZip', Zip) {
-    group = "_runStarsectorMod"
-
-    dependsOn clean
-    dependsOn bridgeJar
+    group = '_runStarsectorMod'
+    dependsOn clean, bridgeJar
+    tasks.named('bridgeJar').get().mustRunAfter clean
 
     archiveFileName = "${modName}-${modversion}.zip"
-
     from("$projectDir/out/${modid}")
     from("$projectDir/resources/mod_info.json")
     from("$projectDir") {

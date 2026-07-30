@@ -1,4 +1,4 @@
-package com.github.alphardpaarthurnax.mixinlib;
+package com.github.alphardpaarthurnax.mixinlib.mixin;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.spongepowered.asm.service.IGlobalPropertyService;
 import org.spongepowered.asm.service.IPropertyKey;
 
+/** 实现 Fabric Mixin 的全局属性服务 */
 public class StarsectorPropertyService implements IGlobalPropertyService {
 
     private final Map<String, Object> properties = new ConcurrentHashMap<>();
