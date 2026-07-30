@@ -14,18 +14,7 @@
 
 ## 开发
 
-### 1. 声明依赖
-
-`mod_info.json`：
-```json
-{
-    "dependencies": [
-        { "id": "MixinLib", "name": "MixinLib" }
-    ],
-}
-```
-
-### 2. 添加 Mixin 配置
+### 添加 Mixin 配置
 
 在 Mod jar 根目录创建 `xxx.mixin.json`
 
@@ -39,17 +28,5 @@
     "mixins": [
         "YourMixinClass"
     ]
-}
-```
-
-### Gradle 依赖
-
-```groovy
-repositories {
-    maven { url = uri("https://repo.spongepowered.org/maven/") }
-}
-
-dependencies {
-    compileOnly('org.spongepowered:mixin:0.8.7')
 }
 ```
