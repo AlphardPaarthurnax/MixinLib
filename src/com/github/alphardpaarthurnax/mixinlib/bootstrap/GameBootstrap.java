@@ -8,7 +8,6 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,14 +21,8 @@ public final class GameBootstrap {
         if (!"game".equals(System.getProperty("mixinlib.phase"))) {
             throw new IllegalStateException("GameBootstrap requires -Dmixinlib.phase=game");
         }
-        String snapshotProperty = System.getProperty("mixinlib.snapshot");
-        String nonce = System.getProperty("mixinlib.nonce");
-        if (snapshotProperty == null || nonce == null) {
-            throw new IllegalStateException("Missing MixinLib snapshot/token");
-        }
-
-        try (LaunchSnapshot.Claimed claimed = LaunchSnapshot.claim(Path.of(snapshotProperty), nonce)) {
-            LaunchSnapshot snapshot = claimed.snapshot;
+        try {
+            LaunchSnapshot snapshot = LaunchSnapshot.fromArguments(arguments);
             URL[] urls = targetUrls(snapshot);
             TargetClassLoader target = new TargetClassLoader(
                     urls, GameBootstrap.class.getClassLoader());

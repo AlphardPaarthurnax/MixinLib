@@ -5,8 +5,6 @@ import com.github.alphardpaarthurnax.mixinlib.logger.MixinLog;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
-import java.net.URI;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -30,10 +28,9 @@ public final class Handoff {
 
         try {
             LaunchSnapshot snapshot = capture(fullscreen, sound, width, height);
-            Path snapshotFile = snapshot.writeAtomically();
-            Process process = startGameProcess(snapshot, snapshotFile);
+            Process process = startGameProcess(snapshot);
             MixinLog.info("[Handoff] game JVM started pid=" + process.pid()
-                    + " enabledMods=" + snapshot.enabledMods.size()
+                    + " enabledMods=" + snapshot.enabledModCount
                     + " jars=" + snapshot.allModJars().size());
             if (!Boolean.getBoolean("mixinlib.handoff.noExit")) {
                 System.exit(0);
@@ -47,9 +44,7 @@ public final class Handoff {
     }
 
     private static LaunchSnapshot capture(boolean fullscreen, boolean sound, String width, String height) throws Exception {
-        LaunchSnapshot snapshot = new LaunchSnapshot();
-        snapshot.workingDirectory = new File(System.getProperty("user.dir", ".")).getCanonicalPath();
-        snapshot.bridgeJar = bridgeJar().getCanonicalPath();
+        LaunchSnapshot snapshot = LaunchSnapshot.create();
         snapshot.fullscreen = fullscreen;
         snapshot.sound = sound;
         snapshot.resolution = width + "x" + height;
@@ -60,23 +55,29 @@ public final class Handoff {
         Object manager = managerClass.getMethod("getInstance").invoke(null);
         List<?> enabled = new ArrayList<>((List<?>) managerClass.getMethod("getEnabledMods").invoke(manager));
         enabled.sort(Comparator.comparing(Handoff::sortKey));
+        snapshot.enabledModCount = enabled.size();
 
         for (int index = enabled.size() - 1; index >= 0; index--) {
             Object spec = enabled.get(index);
-            LaunchSnapshot.EnabledMod mod = new LaunchSnapshot.EnabledMod();
-            mod.id = stringMethod(spec, "getId");
-            mod.path = new File(stringMethod(spec, "getPath")).getCanonicalPath();
+            File modDirectory = new File(stringMethod(spec, "getPath")).getCanonicalFile();
             @SuppressWarnings("unchecked")
             List<String> declaredJars = (List<String>) method(spec, "getJars").invoke(spec);
             for (String declared : declaredJars) {
-                mod.jars.add(new File(mod.path, declared).getCanonicalPath());
+                snapshot.modJars.add(new File(modDirectory, declared).getCanonicalPath());
             }
-            snapshot.enabledMods.add(mod);
         }
         return snapshot;
     }
 
-    private static Process startGameProcess(LaunchSnapshot snapshot, Path snapshotFile) throws Exception {
+    private static Process startGameProcess(LaunchSnapshot snapshot) throws Exception {
+        List<String> command = gameCommand(snapshot);
+        return new ProcessBuilder(command)
+                .directory(new File(snapshot.workingDirectory))
+                .inheritIO()
+                .start();
+    }
+
+    static List<String> gameCommand(LaunchSnapshot snapshot) {
         List<String> command = new ArrayList<>();
         command.add(javaExecutable());
 
@@ -91,8 +92,6 @@ public final class Handoff {
 
         command.add("-javaagent:" + snapshot.bridgeJar);
         command.add("-Dmixinlib.phase=game");
-        command.add("-Dmixinlib.snapshot=" + snapshotFile.toAbsolutePath());
-        command.add("-Dmixinlib.nonce=" + snapshot.nonce);
         command.add("-DlaunchDirect=true");
         command.add("-DstartRes=" + snapshot.resolution);
         command.add("-DstartFS=" + snapshot.fullscreen);
@@ -100,11 +99,8 @@ public final class Handoff {
         command.add("-classpath");
         command.add(snapshot.bridgeJar);
         command.add(GameBootstrap.class.getName());
-
-        return new ProcessBuilder(command)
-                .directory(new File(snapshot.workingDirectory))
-                .inheritIO()
-                .start();
+        command.addAll(snapshot.toArguments());
+        return command;
     }
 
     private static String sortKey(Object spec) {
@@ -138,15 +134,6 @@ public final class Handoff {
             }
         }
         return entries;
-    }
-
-    private static File bridgeJar() throws Exception {
-        URI location = AgentEntry.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        File file = new File(location);
-        if (!file.isFile()) {
-            throw new IllegalStateException("Agent code source is not a jar: " + file);
-        }
-        return file;
     }
 
     private static boolean isMixinLibAgent(String argument) {

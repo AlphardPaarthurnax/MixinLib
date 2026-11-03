@@ -65,12 +65,13 @@ return;
 MixinLib 自身 JAR 路径
 分辨率、全屏和声音选项
 Launcher JVM 的核心 classpath
-最终启用的 Mod ID、目录及其声明的全部 JAR
-随后Handoff.startGameProcess(LaunchSnapshot, Path)通过 ProcessBuilder 创建第二个 JVM
+最终启用 Mod 的数量及其声明的全部 JAR，保留原版挂载顺序
+随后Handoff.startGameProcess(LaunchSnapshot)通过 ProcessBuilder 创建第二个 JVM
+核心classpath和启用Mod的JAR路径通过--core-jar、--mod-jar命令行参数传递，分辨率、全屏和声音通过startRes、startFS、startSound系统属性传递。
 
 3.Game JVM
 
-在这个新进程的开始，我们继承了LaunchSnapshot，建立TargetClassLoader，初始化Mixin，而此时任何游戏和Mod内容都不存在。
+在这个新进程的开始，GameBootstrap通过LaunchSnapshot.fromArguments()解析有序路径列表，工作目录从user.dir读取，MixinLib自身JAR路径从CodeSource获取。检查路径后建立TargetClassLoader、初始化Mixin，此时还没有加载游戏和Mod内容；标准输入输出继续继承原输入输出。系统classpath仍只有bridge，游戏和Mod JAR仍由TargetClassLoader加载。
 随后阻止ScriptStore重复加载mod JAR、
 实现对Janino动态加载的支持。
 在一切准备工作完成后，要做的也只有，
