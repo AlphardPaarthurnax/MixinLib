@@ -3,6 +3,7 @@ package com.github.alphardpaarthurnax.mixinlib.janino;
 import com.github.alphardpaarthurnax.mixinlib.loader.TargetClassLoader;
 import com.github.alphardpaarthurnax.mixinlib.logger.MixinLog;
 import com.github.alphardpaarthurnax.mixinlib.logger.TransformDiagnostics;
+import com.github.alphardpaarthurnax.mixinlib.mixin.InjectorSnapshot;
 import com.github.alphardpaarthurnax.mixinlib.mixin.TransformContext;
 
 import java.lang.instrument.ClassFileTransformer;
@@ -43,6 +44,8 @@ public final class RuntimeTransformer implements ClassFileTransformer {
                         return null;
                     }
                     byte[] result = transformer.transformClass(environment, dotted, classfileBuffer);
+                    // ③ 自检在首次真正 mixin transform 之后触发一次（另一条链路见 TargetClassLoader）。
+                    InjectorSnapshot.runSelfCheckIfNeeded();
                     if (result != null && result != classfileBuffer) {
                         MixinLog.info("[Transform] external #" + counter.incrementAndGet() + " " + dotted
                                 + " loader=" + loader.getClass().getName());

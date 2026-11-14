@@ -2,6 +2,7 @@ package com.github.alphardpaarthurnax.mixinlib.mixin;
 
 import com.github.alphardpaarthurnax.mixinlib.bootstrap.AgentEntry;
 import com.github.alphardpaarthurnax.mixinlib.loader.TargetClassLoader;
+import com.github.alphardpaarthurnax.mixinlib.logger.MixinFileLogger;
 import com.github.alphardpaarthurnax.mixinlib.logger.MixinLog;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.launch.platform.container.ContainerHandleURI;
+import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.launch.platform.container.ContainerHandleVirtual;
 import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 import org.spongepowered.asm.mixin.MixinEnvironment;
@@ -75,6 +77,16 @@ public final class StarsectorMixinService extends MixinServiceAbstract {
             }
             return value;
         }
+    }
+
+    /**
+     * Mixin 日志的唯一接缝：{@code MixinServiceAbstract.getLogger} 用 static map 缓存，
+     * 内部虚分派到本方法 ⇒ 覆写一处即可覆盖 {@code mixin} / {@code mixin.audit} /
+     * {@code MixinExtras|*} 等全部 logger id（S1-T2/T3 实证）。
+     */
+    @Override
+    protected ILogger createLogger(String id) {
+        return new MixinFileLogger(id);
     }
 
     @Override

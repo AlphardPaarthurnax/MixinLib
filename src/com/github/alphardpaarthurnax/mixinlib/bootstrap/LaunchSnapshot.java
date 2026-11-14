@@ -15,6 +15,8 @@ public final class LaunchSnapshot {
     int enabledModCount;
     List<String> coreClasspath = new ArrayList<>();
     List<String> modJars = new ArrayList<>();
+    /** 与 modJars 同序：每个 jar 属于哪个 mod（Launcher 从 spec.getId() 取得）。 */
+    List<String> modIds = new ArrayList<>();
 
     static LaunchSnapshot create() throws Exception {
         LaunchSnapshot snapshot = new LaunchSnapshot();
@@ -32,6 +34,26 @@ public final class LaunchSnapshot {
         return List.copyOf(modJars);
     }
 
+    /**
+     * jar 绝对路径 → 所属 mod id（路径 A：Launcher 通过 {@code --mod-id} 交接）。
+     *
+     * <p>旧快照没有该参数、或某个 mod 的 {@code getId()} 反射失败，都会落到
+     * {@code null} ⇒ 归因降级 {@code (unknown)}，绝不影响启动。
+     */
+    public String modIdForJar(String jarPath) {
+        for (int index = 0; index < modJars.size(); index++) {
+            if (!modJars.get(index).equalsIgnoreCase(jarPath)) {
+                continue;
+            }
+            if (index >= modIds.size()) {
+                return null;
+            }
+            String id = modIds.get(index);
+            return "-".equals(id) ? null : id;
+        }
+        return null;
+    }
+
     public String bridgeJar() {
         return bridgeJar;
     }
@@ -42,9 +64,12 @@ public final class LaunchSnapshot {
             arguments.add("--core-jar");
             arguments.add(path);
         }
-        for (String path : modJars) {
+        for (int index = 0; index < modJars.size(); index++) {
             arguments.add("--mod-jar");
-            arguments.add(path);
+            arguments.add(modJars.get(index));
+            // 只增不减：旧格式快照没有这一对参数，Game JVM 侧 modIds 为空即降级。
+            arguments.add("--mod-id");
+            arguments.add(index < modIds.size() ? modIds.get(index) : "-");
         }
         return arguments;
     }
@@ -54,12 +79,17 @@ public final class LaunchSnapshot {
         for (int index = 0; index < arguments.length; index++) {
             String option = arguments[index];
             List<String> paths;
+            boolean modId = false;
             switch (option) {
                 case "--core-jar":
                     paths = snapshot.coreClasspath;
                     break;
                 case "--mod-jar":
                     paths = snapshot.modJars;
+                    break;
+                case "--mod-id":
+                    paths = snapshot.modIds;
+                    modId = true;
                     break;
                 default:
                     throw new IOException("Unknown MixinLib launch argument: " + option);
@@ -68,7 +98,9 @@ public final class LaunchSnapshot {
                     || arguments[index].startsWith("--")) {
                 throw new IOException("Missing path after " + option);
             }
-            paths.add(new File(arguments[index]).getCanonicalPath());
+            // mod id 是标识符，不是文件路径；只有 jar 路径才做 canonical 化。
+            paths.add(modId ? arguments[index]
+                    : new File(arguments[index]).getCanonicalPath());
         }
         if (snapshot.coreClasspath.isEmpty()) {
             throw new IOException("Missing MixinLib core classpath; expected --core-jar <path>");

@@ -3,6 +3,7 @@ package com.github.alphardpaarthurnax.mixinlib.loader;
 import com.github.alphardpaarthurnax.mixinlib.janino.StarsectorTransformer;
 import com.github.alphardpaarthurnax.mixinlib.logger.MixinLog;
 import com.github.alphardpaarthurnax.mixinlib.logger.TransformDiagnostics;
+import com.github.alphardpaarthurnax.mixinlib.mixin.InjectorSnapshot;
 import com.github.alphardpaarthurnax.mixinlib.mixin.TransformContext;
 
 import java.io.ByteArrayInputStream;
@@ -247,6 +248,8 @@ public final class TargetClassLoader extends URLClassLoader {
                         return prepared;
                     }
                     byte[] result = value.transformClass(environment, name, prepared);
+                    // ③ 自检必须晚于 onSelect()（S1-T1）；首次真正 mixin transform 之后触发一次。
+                    InjectorSnapshot.runSelfCheckIfNeeded();
                     if (result != null && result != prepared) {
                         MixinLog.info("[Transform] target " + name + " " + prepared.length + " -> " + result.length);
                     }

@@ -60,10 +60,19 @@ public final class Handoff {
         for (int index = enabled.size() - 1; index >= 0; index--) {
             Object spec = enabled.get(index);
             File modDirectory = new File(stringMethod(spec, "getPath")).getCanonicalFile();
+            // 路径 A：mod id 由 Launcher 直接向 spec 要（Starsector 的 mod_info.json
+            // 位于 mods/<name>/ 目录、不在 jar 内），随 jar 一起交接给 Game JVM。
+            // 反射失败只降级为 "-" 并告警，绝不让一个 mod 的元数据问题阻断启动。
+            String modId = safeStringMethod(spec, "getId");
+            if (modId == null || modId.isBlank()) {
+                MixinLog.info("[Attribution] launcher 无法读取 mod id，归因降级: " + modDirectory);
+                modId = "-";
+            }
             @SuppressWarnings("unchecked")
             List<String> declaredJars = (List<String>) method(spec, "getJars").invoke(spec);
             for (String declared : declaredJars) {
                 snapshot.modJars.add(new File(modDirectory, declared).getCanonicalPath());
+                snapshot.modIds.add(modId);
             }
         }
         return snapshot;
@@ -119,6 +128,15 @@ public final class Handoff {
     private static String stringMethod(Object target, String name) throws Exception {
         Object value = method(target, name).invoke(target);
         return value == null ? null : value.toString();
+    }
+
+    /** 元数据反射是「尽力而为」：任何异常都降级为 null，不传播到启动链路。 */
+    private static String safeStringMethod(Object target, String name) {
+        try {
+            return stringMethod(target, name);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static List<String> absoluteClasspath(String workingDirectory) throws Exception {
