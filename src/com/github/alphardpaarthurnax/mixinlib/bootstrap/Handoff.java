@@ -91,7 +91,11 @@ public final class Handoff {
         command.add(javaExecutable());
 
         for (String argument : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
-            if (isMixinLibAgent(argument) || argument.startsWith("-Dmixinlib.")
+            // 只有 phase 由本方法重新指定为 game；其余 -Dmixinlib.* 必须透传。
+            // 日志级别 / 过滤器 / plugin.strict 等都在 Game JVM 读取（MixinLog 的
+            // static final 字段在 Game JVM 类初始化时求值），若在此一律丢弃，
+            // 用户在 vmparams 里设置的开关会永远回落到默认值。
+            if (isMixinLibAgent(argument) || argument.startsWith("-Dmixinlib.phase=")
                     || argument.startsWith("-DlaunchDirect") || argument.startsWith("-DstartRes=")
                     || argument.startsWith("-DstartFS=") || argument.startsWith("-DstartSound=")) {
                 continue;
